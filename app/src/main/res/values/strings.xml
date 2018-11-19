@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Crypto Charts</string>
+    <string name="author_name">Adin Kwok</string>
+    <string name="date_created">Nov 19, 2018</string>
 </resources>
