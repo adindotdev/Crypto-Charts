@@ -2,4 +2,8 @@
     <string name="app_name">Crypto Charts</string>
     <string name="author_name">Adin Kwok</string>
     <string name="date_created">Nov 19, 2018</string>
+    <string name="currency_price">$%1$s</string>
+
+    <string name="currency_test_name">Adicoin</string>
+    <string name="currency_test_price">999.99</string>
 </resources>
