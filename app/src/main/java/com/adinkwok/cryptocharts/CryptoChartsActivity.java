@@ -46,14 +46,14 @@ public class CryptoChartsActivity extends AppCompatActivity {
         new GetCurrencyInfo().execute();
 
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setHomeAsUpIndicator(android.R.drawable.btn_star_big_off);
+        getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_star_white);
     }
 
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         menu.add(0, FAV_LIST, 0, R.string.app_name)
-                .setIcon(android.R.drawable.arrow_up_float)
+                .setIcon(R.drawable.ic_up_arrow)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
     }
@@ -87,9 +87,10 @@ public class CryptoChartsActivity extends AppCompatActivity {
     /**
      * Adds selected currency to the list.
      * If the list is in favourites, move it out of there.
+     *
      * @param existingLL is an existing layout, used to prevent recreation.
-     * @param name of the currency.
-     * @param price of a single unit of the currency in CAD.
+     * @param name       of the currency.
+     * @param price      of a single unit of the currency in CAD.
      */
     private void addRegCurrency(LinearLayout existingLL, String name, String price) {
         if (existingLL != null && mFavLinearLayout.indexOfChild(existingLL) != -1) {
@@ -105,10 +106,11 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
     /**
      * Adds selected currency to the favourites list.
-     * Move the list out of the regular list and move it here.
+     * Move the currency out of the regular list and move it here.
+     *
      * @param existingLL is an existing layout, used to prevent recreation.
-     * @param name of the currency.
-     * @param price of a single unit of the currency in CAD.
+     * @param name       of the currency.
+     * @param price      of a single unit of the currency in CAD.
      */
     private void addFavCurrency(LinearLayout existingLL, String name, String price) {
         Toast.makeText(getApplicationContext(),
@@ -129,22 +131,24 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
     /**
      * Updates given currency's star image depending on the list they reside in.
+     *
      * @param layout of the currency entry to modify.
      */
     private void updateFavImage(LinearLayout layout) {
         if (layout != null) {
             ImageView favImage = layout.findViewById(R.id.fav_image);
             if (mFavLinearLayout.indexOfChild(layout) != -1) {
-                favImage.setImageDrawable(getDrawable(android.R.drawable.btn_star_big_on));
+                favImage.setImageDrawable(getDrawable(R.drawable.ic_star_filled));
             } else if (mRegLinearLayout.indexOfChild(layout) != -1) {
-                favImage.setImageDrawable(getDrawable(android.R.drawable.btn_star_big_off));
+                favImage.setImageDrawable(getDrawable(R.drawable.ic_star_open));
             }
         }
     }
 
     /**
      * Creates a new currency entry with the given name and price.
-     * @param name of the currency.
+     *
+     * @param name  of the currency.
      * @param price of a single unit of the currency in CAD.
      * @return the new currency entry.
      */
@@ -190,7 +194,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
         /**
          * Changed coin list API path as recommended by CryptoCompare.
          * Original link: https://www.cryptocompare.com/api/data/coinlist
-         *
+         * <p>
          * Only request data if it has not been previously recorded.
          */
         private void getUrlCoinList() {
@@ -206,7 +210,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
          * Since the CryptoCurrency API only allows fsyms with a constraint of 300 characters,
          * split requests like so: pausing one symbol before reaching the maximum then starting a
          * new request.
-         *
+         * <p>
          * If isPriceListDownloaded is true, don't request data again and use previous results.
          */
         private void getPriceList() {
@@ -235,6 +239,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
         /**
          * Extracts all currency names and symbols.
+         *
          * @return true if parsing JSON data is without fail, false if otherwise.
          */
         private boolean parseCurrencyName() {
@@ -262,6 +267,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
         /**
          * Extracts the Canadian dollar conversion of currencies.
          * If price information is unavailable, show "N/a".
+         *
          * @return true if nothing bad happens when parsing, false otherwise
          */
         private boolean parseCurrencyPrice() {
