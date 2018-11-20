@@ -72,6 +72,9 @@ public class CryptoChartsActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Removes all currency entries in the favourites list.
+     */
     private void clearFavourites() {
         Toast.makeText(this,
                 "Cleared favourites.",
@@ -81,6 +84,13 @@ public class CryptoChartsActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Adds selected currency to the list.
+     * If the list is in favourites, move it out of there.
+     * @param existingLL is an existing layout, used to prevent recreation.
+     * @param name of the currency.
+     * @param price of a single unit of the currency in CAD.
+     */
     private void addRegCurrency(LinearLayout existingLL, String name, String price) {
         if (existingLL != null && mFavLinearLayout.indexOfChild(existingLL) != -1) {
             mFavLinearLayout.removeView(existingLL);
@@ -93,6 +103,13 @@ public class CryptoChartsActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Adds selected currency to the favourites list.
+     * Move the list out of the regular list and move it here.
+     * @param existingLL is an existing layout, used to prevent recreation.
+     * @param name of the currency.
+     * @param price of a single unit of the currency in CAD.
+     */
     private void addFavCurrency(LinearLayout existingLL, String name, String price) {
         Toast.makeText(getApplicationContext(),
                 "Added " + name + " to favourites.",
@@ -110,6 +127,10 @@ public class CryptoChartsActivity extends AppCompatActivity {
         Log.e(TAG, "Added " + name + " to favourites.");
     }
 
+    /**
+     * Updates given currency's star image depending on the list they reside in.
+     * @param layout of the currency entry to modify.
+     */
     private void updateFavImage(LinearLayout layout) {
         if (layout != null) {
             ImageView favImage = layout.findViewById(R.id.fav_image);
@@ -121,6 +142,12 @@ public class CryptoChartsActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Creates a new currency entry with the given name and price.
+     * @param name of the currency.
+     * @param price of a single unit of the currency in CAD.
+     * @return the new currency entry.
+     */
     @SuppressLint("InflateParams")
     private LinearLayout createNewCurrencyEntry(String name, String price) {
         LinearLayout currencyItem = (LinearLayout) getLayoutInflater()
@@ -160,6 +187,56 @@ public class CryptoChartsActivity extends AppCompatActivity {
             progressDialog.show();
         }
 
+        /**
+         * Changed coin list API path as recommended by CryptoCompare.
+         * Original link: https://www.cryptocompare.com/api/data/coinlist
+         *
+         * Only request data if it has not been previously recorded.
+         */
+        private void getUrlCoinList() {
+            if (coinListJson == null) {
+                //  String urlCoinList = "https://www.cryptocompare.com/api/data/coinlist";
+                String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
+                coinListJson = httpHandler.makeServiceCall(urlCoinList);
+                Log.e(TAG, "Response from url: " + coinListJson);
+            }
+        }
+
+        /**
+         * Since the CryptoCurrency API only allows fsyms with a constraint of 300 characters,
+         * split requests like so: pausing one symbol before reaching the maximum then starting a
+         * new request.
+         *
+         * If isPriceListDownloaded is true, don't request data again and use previous results.
+         */
+        private void getPriceList() {
+            if (!isPriceListDownloaded) {
+                max200Index.add(0);
+                StringBuilder urlConvertToCad = new StringBuilder();
+                for (int i = 0; i < currencyInfo.size(); i++) {
+                    if (urlConvertToCad.length() + currencyInfo.get(i)[0].length() + 1 < 300) {
+                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
+                    } else {
+                        String finalUrlConvert =
+                                "https://min-api.cryptocompare.com/data/pricemulti?fsyms=" +
+                                        urlConvertToCad.toString() +
+                                        "&tsyms=CAD";
+                        String jsonStr = httpHandler.makeServiceCall(finalUrlConvert);
+                        max200Index.add(i);
+                        priceJson.add(jsonStr);
+                        urlConvertToCad = new StringBuilder();
+                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
+                        Log.e(TAG, "Response from url: " + jsonStr);
+                    }
+                }
+                isPriceListDownloaded = true;
+            }
+        }
+
+        /**
+         * Extracts all currency names and symbols.
+         * @return true if parsing JSON data is without fail, false if otherwise.
+         */
         private boolean parseCurrencyName() {
             try {
                 JSONObject jsonObj = new JSONObject(coinListJson);
@@ -182,6 +259,11 @@ public class CryptoChartsActivity extends AppCompatActivity {
             return true;
         }
 
+        /**
+         * Extracts the Canadian dollar conversion of currencies.
+         * If price information is unavailable, show "N/a".
+         * @return true if nothing bad happens when parsing, false otherwise
+         */
         private boolean parseCurrencyPrice() {
             for (int i = 0; i < priceJson.size(); i++) {
                 String jsonStr = priceJson.get(i);
@@ -207,38 +289,6 @@ public class CryptoChartsActivity extends AppCompatActivity {
                 }
             }
             return true;
-        }
-
-        private void getUrlCoinList() {
-            if (coinListJson == null) {
-                String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
-                coinListJson = httpHandler.makeServiceCall(urlCoinList);
-                Log.e(TAG, "Response from url: " + coinListJson);
-            }
-        }
-
-        private void getPriceList() {
-            if (!isPriceListDownloaded) {
-                max200Index.add(0);
-                StringBuilder urlConvertToCad = new StringBuilder();
-                for (int i = 0; i < currencyInfo.size(); i++) {
-                    if (urlConvertToCad.length() + currencyInfo.get(i)[0].length() + 1 < 300) {
-                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
-                    } else {
-                        String finalUrlConvert =
-                                "https://min-api.cryptocompare.com/data/pricemulti?fsyms=" +
-                                        urlConvertToCad.toString() +
-                                        "&tsyms=CAD";
-                        String jsonStr = httpHandler.makeServiceCall(finalUrlConvert);
-                        max200Index.add(i);
-                        priceJson.add(jsonStr);
-                        urlConvertToCad = new StringBuilder();
-                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
-                        Log.e(TAG, "Response from url: " + jsonStr);
-                    }
-                }
-                isPriceListDownloaded = true;
-            }
         }
 
         @Override
