@@ -2,6 +2,8 @@ package com.adinkwok.cryptocharts;
 
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.ActionBar;
@@ -19,25 +21,33 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class CryptoChartsActivity extends AppCompatActivity {
     private static final String TAG = CryptoChartsActivity.class.getSimpleName();
 
+    private SharedPreferences mSharedPreferences;
+
     private ScrollView mScrollView;
     private LinearLayout mFavLinearLayout;
     private LinearLayout mRegLinearLayout;
+    private Set<String> mFavouritesList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_crypto_charts);
 
+        mSharedPreferences = getPreferences(Context.MODE_PRIVATE);
+
         mScrollView = findViewById(R.id.currency_scroll);
         mFavLinearLayout = findViewById(R.id.fav_currency_layout);
         mRegLinearLayout = findViewById(R.id.reg_currency_layout);
+        mFavouritesList = mSharedPreferences.getStringSet("fav", new HashSet<>());
 
         Objects.requireNonNull(getSupportActionBar())
                 .setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
@@ -52,14 +62,14 @@ public class CryptoChartsActivity extends AppCompatActivity {
     }
 
     /**
-     * Adds selected currency to the list.
-     * If the list is in favourites, move it out of there.
+     * Adds selected currency to the list, removing it from the favourites list.
      *
      * @param existingLL is an existing layout, used to prevent recreation.
      * @param name       of the currency.
      * @param price      of a single unit of the currency in CAD.
      */
     private void addRegCurrency(LinearLayout existingLL, String name, String price) {
+        mFavouritesList.remove(name);
         if (existingLL != null && mFavLinearLayout.indexOfChild(existingLL) != -1) {
             mFavLinearLayout.removeView(existingLL);
             mRegLinearLayout.addView(existingLL, 0);
@@ -71,9 +81,17 @@ public class CryptoChartsActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SharedPreferences.Editor editor = mSharedPreferences.edit();
+        editor.clear();
+        editor.putStringSet("fav", mFavouritesList);
+        editor.apply();
+    }
+
     /**
-     * Adds selected currency to the favourites list.
-     * Move the currency out of the regular list and move it here.
+     * Adds currency to the favourites list, removing it from the regular list.
      *
      * @param existingLL is an existing layout, used to prevent recreation.
      * @param name       of the currency.
@@ -93,7 +111,10 @@ public class CryptoChartsActivity extends AppCompatActivity {
             mFavLinearLayout.addView(existingLL);
             updateFavImage(existingLL);
         }
-        Log.e(TAG, "Added " + name + " to favourites.");
+        if (!mFavouritesList.contains(name)) {
+            mFavouritesList.add(name);
+            Log.v(TAG, "Added " + name + " to favourites.");
+        }
     }
 
     /**
@@ -162,7 +183,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
             //  String urlCoinList = "https://www.cryptocompare.com/api/data/coinlist";
             String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
             String response = httpHandler.makeServiceCall(urlCoinList);
-            Log.e(TAG, "Response from url: " + response);
+            Log.v(TAG, "Response from url: " + response);
             return response;
         }
 
@@ -201,7 +222,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
                             symbols +
                             "&tsyms=CAD";
             String jsonStr = httpHandler.makeServiceCall(finalUrlConvert);
-            Log.e(TAG, "Response from url: " + jsonStr);
+            Log.v(TAG, "Response from url: " + jsonStr);
             return jsonStr;
         }
 
@@ -251,7 +272,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
             try {
                 parseCurrencyName(getCoinList());
                 parseCurrencyPrice(getPriceList());
-            } catch (JSONException e) {
+            } catch (Exception e) {
                 Log.e(TAG, "Json parsing error: " + e.getMessage());
                 runOnUiThread(() -> Toast.makeText(getApplicationContext(),
                         "Json parsing error: " + e.getMessage(),
@@ -265,7 +286,12 @@ public class CryptoChartsActivity extends AppCompatActivity {
         protected void onPostExecute(Void result) {
             super.onPostExecute(result);
             for (String[] fetchedData : currencyInfo.values()) {
-                addRegCurrency(null, fetchedData[0], fetchedData[1]);
+                if (mFavouritesList.contains(fetchedData[0])) {
+                    addFavCurrency(null, fetchedData[0], fetchedData[1]);
+                    Log.v(TAG, fetchedData[0] + " is added back to favourites");
+                } else {
+                    addRegCurrency(null, fetchedData[0], fetchedData[1]);
+                }
             }
             if (progressDialog.isShowing())
                 progressDialog.dismiss();
