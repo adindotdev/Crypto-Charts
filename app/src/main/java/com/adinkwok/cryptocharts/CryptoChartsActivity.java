@@ -7,8 +7,6 @@ import android.os.Bundle;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -20,12 +18,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
 public class CryptoChartsActivity extends AppCompatActivity {
     private static final String TAG = CryptoChartsActivity.class.getSimpleName();
-    private static final int FAV_LIST = 0;
 
     private ScrollView mScrollView;
     private LinearLayout mFavLinearLayout;
@@ -43,45 +42,13 @@ public class CryptoChartsActivity extends AppCompatActivity {
         Objects.requireNonNull(getSupportActionBar())
                 .setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
         getSupportActionBar().setCustomView(R.layout.abs_layout);
+
+        getSupportActionBar().getCustomView().findViewById(R.id.up_arrow)
+                .setOnClickListener(v -> mScrollView.fullScroll(ScrollView.FOCUS_UP));
+        getSupportActionBar().getCustomView().findViewById(R.id.down_arrow)
+                .setOnClickListener(v -> mScrollView.fullScroll(ScrollView.FOCUS_DOWN));
+
         new GetCurrencyInfo().execute();
-
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_star_white);
-    }
-
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(0, FAV_LIST, 0, R.string.app_name)
-                .setIcon(R.drawable.ic_up_arrow)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case FAV_LIST:
-                mScrollView.fullScroll(ScrollView.FOCUS_UP);
-                return true;
-            case android.R.id.home:
-                clearFavourites();
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    /**
-     * Removes all currency entries in the favourites list.
-     */
-    private void clearFavourites() {
-        Toast.makeText(this,
-                "Cleared favourites.",
-                Toast.LENGTH_SHORT).show();
-        for (int i = mFavLinearLayout.getChildCount() - 1; i >= 0; i--) {
-            addRegCurrency((LinearLayout) mFavLinearLayout.getChildAt(i), null, null);
-        }
     }
 
     /**
@@ -174,14 +141,10 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
     @SuppressLint("StaticFieldLeak")
     private class GetCurrencyInfo extends AsyncTask<Void, Void, Void> {
+        private final HashMap<String, String[]> currencyInfo = new HashMap<>();
         private final ProgressDialog progressDialog = new ProgressDialog(CryptoChartsActivity.this);
         private final HttpHandler httpHandler = new HttpHandler();
 
-        private final LinkedList<String[]> currencyInfo = new LinkedList<>();
-        private final ArrayList<String> priceJson = new ArrayList<>();
-        private final ArrayList<Integer> max200Index = new ArrayList<>();
-        private boolean isPriceListDownloaded = false;
-        private String coinListJson;
 
         @Override
         protected void onPreExecute() {
@@ -194,47 +157,52 @@ public class CryptoChartsActivity extends AppCompatActivity {
         /**
          * Changed coin list API path as recommended by CryptoCompare.
          * Original link: https://www.cryptocompare.com/api/data/coinlist
-         * <p>
          * Only request data if it has not been previously recorded.
          */
-        private void getUrlCoinList() {
-            if (coinListJson == null) {
-                //  String urlCoinList = "https://www.cryptocompare.com/api/data/coinlist";
-                String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
-                coinListJson = httpHandler.makeServiceCall(urlCoinList);
-                Log.e(TAG, "Response from url: " + coinListJson);
-            }
+        private String getUrlCoinList() {
+            //  String urlCoinList = "https://www.cryptocompare.com/api/data/coinlist";
+            String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
+            String response = httpHandler.makeServiceCall(urlCoinList);
+            Log.e(TAG, "Response from url: " + response);
+            return response;
         }
 
         /**
          * Since the CryptoCurrency API only allows fsyms with a constraint of 300 characters,
          * split requests like so: pausing one symbol before reaching the maximum then starting a
-         * new request.
-         * <p>
-         * If isPriceListDownloaded is true, don't request data again and use previous results.
+         * new request. If isPriceListDownloaded is true, don't request data again and use previous
+         * results.
          */
-        private void getPriceList() {
-            if (!isPriceListDownloaded) {
-                max200Index.add(0);
-                StringBuilder urlConvertToCad = new StringBuilder();
-                for (int i = 0; i < currencyInfo.size(); i++) {
-                    if (urlConvertToCad.length() + currencyInfo.get(i)[0].length() + 1 < 300) {
-                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
-                    } else {
-                        String finalUrlConvert =
-                                "https://min-api.cryptocompare.com/data/pricemulti?fsyms=" +
-                                        urlConvertToCad.toString() +
-                                        "&tsyms=CAD";
-                        String jsonStr = httpHandler.makeServiceCall(finalUrlConvert);
-                        max200Index.add(i);
-                        priceJson.add(jsonStr);
-                        urlConvertToCad = new StringBuilder();
-                        urlConvertToCad.append(currencyInfo.get(i)[0]).append(",");
-                        Log.e(TAG, "Response from url: " + jsonStr);
-                    }
+        private ArrayList getPriceList() {
+            ArrayList<String> prices = new ArrayList<>();
+            StringBuilder urlConvertToCad = new StringBuilder();
+            for (String symbol : currencyInfo.keySet()) {
+                urlConvertToCad.append(symbol).append(",");
+                if (urlConvertToCad.length() + symbol.length() + 1 >= 300) {
+                    prices.add(requestPrices(urlConvertToCad.toString()));
+                    urlConvertToCad = new StringBuilder();
                 }
-                isPriceListDownloaded = true;
             }
+            prices.add(requestPrices(urlConvertToCad.toString()));
+            return prices;
+        }
+
+        /**
+         * Requests and records prices of the given symbols.
+         * @param symbols that are separated by commas.
+         * @return a JSON string of the prices.
+         */
+        private String requestPrices(String symbols) {
+            if (symbols == null) {
+                return null;
+            }
+            String finalUrlConvert =
+                    "https://min-api.cryptocompare.com/data/pricemulti?fsyms=" +
+                            symbols +
+                            "&tsyms=CAD";
+            String jsonStr = httpHandler.makeServiceCall(finalUrlConvert);
+            Log.e(TAG, "Response from url: " + jsonStr);
+            return jsonStr;
         }
 
         /**
@@ -242,16 +210,15 @@ public class CryptoChartsActivity extends AppCompatActivity {
          *
          * @return true if parsing JSON data is without fail, false if otherwise.
          */
-        private boolean parseCurrencyName() {
+        private boolean parseCurrencyName(String coinListJson) {
             try {
                 JSONObject jsonObj = new JSONObject(coinListJson);
                 jsonObj = jsonObj.getJSONObject("Data");
                 JSONArray keys = jsonObj.names();
                 for (int i = 0; i < keys.length(); i++) {
                     JSONObject c = jsonObj.getJSONObject(keys.getString(i));
-                    String[] fetched = {c.getString("Symbol"),
-                            c.getString("FullName"), ""};
-                    currencyInfo.add(fetched);
+                    String[] fetched = {c.getString("FullName"), " N/a"};
+                    currencyInfo.put(c.getString("Symbol"), fetched);
                 }
             } catch (JSONException e) {
                 Log.e(TAG, "Json parsing error: " + e.getMessage());
@@ -270,19 +237,19 @@ public class CryptoChartsActivity extends AppCompatActivity {
          *
          * @return true if nothing bad happens when parsing, false otherwise
          */
-        private boolean parseCurrencyPrice() {
-            for (int i = 0; i < priceJson.size(); i++) {
-                String jsonStr = priceJson.get(i);
+        private boolean parseCurrencyPrice(List prices) {
+            for (int i = 0; i < prices.size(); i++) {
+                String jsonStr = (String) prices.get(i);
                 try {
                     JSONObject jsonObj = new JSONObject(jsonStr);
-                    for (int k = max200Index.get(i); k < max200Index.get(i + 1); k++) {
-                        if (k < currencyInfo.size()) {
-                            if (jsonObj.has(currencyInfo.get(k)[0])) {
-                                JSONObject c = jsonObj.getJSONObject(currencyInfo.get(k)[0]);
-                                currencyInfo.get(k)[2] = c.getString("CAD");
-                            } else {
-                                currencyInfo.get(k)[2] = " N/a";
-                            }
+                    Iterator<String> keys = jsonObj.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        if (jsonObj.get(key) instanceof JSONObject) {
+                            String[] currency = currencyInfo.get(key);
+                            assert currency != null;
+                            currency[1] = ((JSONObject) jsonObj.get(key)).getString("CAD");
+                            currencyInfo.put(key, currency);
                         }
                     }
                 } catch (JSONException e) {
@@ -299,15 +266,21 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
         @Override
         protected Void doInBackground(Void... arg0) {
-            getUrlCoinList();
-            if (coinListJson != null && parseCurrencyName()) {
-                getPriceList();
-                if (!isPriceListDownloaded || !parseCurrencyPrice()) {
-                    failedToGetData();
+            boolean shouldComplain = false;
+            String coinList = getUrlCoinList();
+            if (coinList != null) {
+                shouldComplain = !parseCurrencyName(coinList);
+                if (!shouldComplain) {
+                    ArrayList prices = getPriceList();
+                    if (prices != null) {
+                        shouldComplain = !parseCurrencyPrice(prices);
+                    } else {
+                        shouldComplain = true;
+                    }
                 }
-            } else {
-                failedToGetData();
             }
+            if (shouldComplain)
+                failedToGetData();
             return null;
         }
 
@@ -322,8 +295,8 @@ public class CryptoChartsActivity extends AppCompatActivity {
         @Override
         protected void onPostExecute(Void result) {
             super.onPostExecute(result);
-            for (String[] fetchedData : currencyInfo) {
-                addRegCurrency(null, fetchedData[1], fetchedData[2]);
+            for (String[] fetchedData : currencyInfo.values()) {
+                addRegCurrency(null, fetchedData[0], fetchedData[1]);
             }
             if (progressDialog.isShowing())
                 progressDialog.dismiss();
