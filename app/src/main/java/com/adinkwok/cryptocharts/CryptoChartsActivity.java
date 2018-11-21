@@ -117,7 +117,7 @@ public class CryptoChartsActivity extends AppCompatActivity {
      *
      * @param name  of the currency.
      * @param price of a single unit of the currency in CAD.
-     * @return the new currency entry.
+     * @return new currency entry.
      */
     @SuppressLint("InflateParams")
     private LinearLayout createNewCurrencyEntry(String name, String price) {
@@ -145,7 +145,6 @@ public class CryptoChartsActivity extends AppCompatActivity {
         private final ProgressDialog progressDialog = new ProgressDialog(CryptoChartsActivity.this);
         private final HttpHandler httpHandler = new HttpHandler();
 
-
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
@@ -156,10 +155,10 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
         /**
          * Changed coin list API path as recommended by CryptoCompare.
-         * Original link: https://www.cryptocompare.com/api/data/coinlist
          * Only request data if it has not been previously recorded.
+         * Original link: https://www.cryptocompare.com/api/data/coinlist
          */
-        private String getUrlCoinList() {
+        private String getCoinList() {
             //  String urlCoinList = "https://www.cryptocompare.com/api/data/coinlist";
             String urlCoinList = "https://min-api.cryptocompare.com/data/all/coinlist";
             String response = httpHandler.makeServiceCall(urlCoinList);
@@ -189,8 +188,9 @@ public class CryptoChartsActivity extends AppCompatActivity {
 
         /**
          * Requests and records prices of the given symbols.
+         *
          * @param symbols that are separated by commas.
-         * @return a JSON string of the prices.
+         * @return JSON string of the prices.
          */
         private String requestPrices(String symbols) {
             if (symbols == null) {
@@ -208,88 +208,57 @@ public class CryptoChartsActivity extends AppCompatActivity {
         /**
          * Extracts all currency names and symbols.
          *
-         * @return true if parsing JSON data is without fail, false if otherwise.
+         * @param coinListJson the list of currencies.
+         * @throws JSONException when coinListJson is malformed.
          */
-        private boolean parseCurrencyName(String coinListJson) {
-            try {
-                JSONObject jsonObj = new JSONObject(coinListJson);
-                jsonObj = jsonObj.getJSONObject("Data");
-                JSONArray keys = jsonObj.names();
-                for (int i = 0; i < keys.length(); i++) {
-                    JSONObject c = jsonObj.getJSONObject(keys.getString(i));
-                    String[] fetched = {c.getString("FullName"), " N/a"};
-                    currencyInfo.put(c.getString("Symbol"), fetched);
-                }
-            } catch (JSONException e) {
-                Log.e(TAG, "Json parsing error: " + e.getMessage());
-                runOnUiThread(() -> Toast.makeText(getApplicationContext(),
-                        "Json parsing error: " + e.getMessage(),
-                        Toast.LENGTH_LONG)
-                        .show());
-                return false;
+        private void parseCurrencyName(String coinListJson) throws JSONException {
+            JSONObject jsonObj = new JSONObject(coinListJson);
+            jsonObj = jsonObj.getJSONObject("Data");
+            JSONArray keys = jsonObj.names();
+            for (int i = 0; i < keys.length(); i++) {
+                JSONObject c = jsonObj.getJSONObject(keys.getString(i));
+                String[] fetched = {c.getString("FullName"), " N/a"};
+                currencyInfo.put(c.getString("Symbol"), fetched);
             }
-            return true;
         }
 
         /**
          * Extracts the Canadian dollar conversion of currencies.
          * If price information is unavailable, show "N/a".
          *
-         * @return true if nothing bad happens when parsing, false otherwise
+         * @param prices the list of prices.
+         * @throws JSONException when prices is malformed.
          */
-        private boolean parseCurrencyPrice(List prices) {
+        private void parseCurrencyPrice(List prices) throws JSONException {
             for (int i = 0; i < prices.size(); i++) {
                 String jsonStr = (String) prices.get(i);
-                try {
-                    JSONObject jsonObj = new JSONObject(jsonStr);
-                    Iterator<String> keys = jsonObj.keys();
-                    while (keys.hasNext()) {
-                        String key = keys.next();
-                        if (jsonObj.get(key) instanceof JSONObject) {
-                            String[] currency = currencyInfo.get(key);
-                            assert currency != null;
-                            currency[1] = ((JSONObject) jsonObj.get(key)).getString("CAD");
-                            currencyInfo.put(key, currency);
-                        }
+                JSONObject jsonObj = new JSONObject(jsonStr);
+                Iterator<String> keys = jsonObj.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    if (jsonObj.get(key) instanceof JSONObject) {
+                        String[] currency = currencyInfo.get(key);
+                        assert currency != null;
+                        currency[1] = ((JSONObject) jsonObj.get(key)).getString("CAD");
+                        currencyInfo.put(key, currency);
                     }
-                } catch (JSONException e) {
-                    Log.e(TAG, "Json parsing error: " + e.getMessage());
-                    runOnUiThread(() -> Toast.makeText(getApplicationContext(),
-                            "Json parsing error: " + e.getMessage(),
-                            Toast.LENGTH_LONG)
-                            .show());
-                    return false;
                 }
             }
-            return true;
         }
 
         @Override
         protected Void doInBackground(Void... arg0) {
-            boolean shouldComplain = false;
-            String coinList = getUrlCoinList();
-            if (coinList != null) {
-                shouldComplain = !parseCurrencyName(coinList);
-                if (!shouldComplain) {
-                    ArrayList prices = getPriceList();
-                    if (prices != null) {
-                        shouldComplain = !parseCurrencyPrice(prices);
-                    } else {
-                        shouldComplain = true;
-                    }
-                }
+            try {
+                parseCurrencyName(getCoinList());
+                parseCurrencyPrice(getPriceList());
+            } catch (JSONException e) {
+                Log.e(TAG, "Json parsing error: " + e.getMessage());
+                runOnUiThread(() -> Toast.makeText(getApplicationContext(),
+                        "Json parsing error: " + e.getMessage(),
+                        Toast.LENGTH_LONG)
+                        .show());
             }
-            if (shouldComplain)
-                failedToGetData();
             return null;
-        }
-
-        private void failedToGetData() {
-            Log.e(TAG, "Couldn't get data from server.");
-            runOnUiThread(() -> Toast.makeText(getApplicationContext(),
-                    "Couldn't get data from server.",
-                    Toast.LENGTH_LONG)
-                    .show());
         }
 
         @Override
